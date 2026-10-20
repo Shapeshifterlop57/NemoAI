@@ -1,4 +1,53 @@
 import streamlit as st
+from groq import Groq
+
+st.set_page_config(page_title="NemoAI Pro", page_icon="🤖")
+
+api_key = st.secrets.get("GROQ_API_KEY", "")
+
+with st.sidebar:
+    st.title("⚙️ Cấu hình NemoAI")
+    if not api_key:
+        api_key = st.text_input("Nhập Groq API Key (gsk_...):", type="password")
+        st.markdown("[👉 Lấy Groq API Key miễn phí](https://console.groq.com/)")
+
+st.title("🤖 NemoAI Pro (Groq Speed Engine)")
+
+if not api_key:
+    st.info("💡 Vui lòng nhập Groq API Key ở thanh bên để bắt đầu!")
+    st.stop()
+
+client = Groq(api_key=api_key.strip())
+
+if "messages" not in st.session_state:
+    st.session_state.messages = [
+        {"role": "assistant", "content": "Xin chào! Tôi là NemoAI chạy trên hạ tầng Groq siêu tốc. Tôi có thể giúp gì cho bạn?"}
+    ]
+
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"])
+
+if prompt := st.chat_input("Nhập câu hỏi của bạn..."):
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    with st.chat_message("user"):
+        st.markdown(prompt)
+
+    with st.chat_message("assistant"):
+        with st.spinner("NemoAI đang phản hồi..."):
+            try:
+                chat_completion = client.chat.completions.create(
+                    messages=[
+                        {"role": m["role"], "content": m["content"]}
+                        for m in st.session_state.messages
+                    ],
+                    model="llama3-8b-8192",  # Mô hình Llama 3 cực mượt
+                )
+                ai_response = chat_completion.choices[0].message.content
+                st.markdown(ai_response)
+                st.session_state.messages.append({"role": "assistant", "content": ai_response})
+            except Exception as e:
+                st.error(f"⚠️ Lỗi kết nối API: {e}")import streamlit as st
 from google import genai
 from google.genai import types
 
