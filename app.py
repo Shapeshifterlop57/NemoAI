@@ -1,141 +1,84 @@
 import streamlit as st
-import torch
-import torch.nn as nn
-from tokenizers import Tokenizer, models, trainers, pre_tokenizers
+import google.generativeai as genai
 
-# 1. Cấu hình giao diện trang web
+# 1. Cấu hình trang Streamlit
 st.set_page_config(
-    page_title="NemoAI - Autonomous PyTorch Model",
+    page_title="NemoAI Pro Workspace",
     page_icon="🤖",
     layout="centered",
     initial_sidebar_state="expanded"
 )
 
-# 2. Giao diện CSS tùy chỉnh
-st.markdown("""
-    <style>
-    .main { background-color: #f8f9fa; }
-    .stChatMessage { padding: 1rem; border-radius: 12px; margin-bottom: 0.8rem; }
-    </style>
-""", unsafe_allow_html=True)
+# 2. Quản lý API Key (Ưu tiên lấy từ st.secrets)
+api_key = st.secrets.get("GEMINI_API_KEY", "")
 
-# 3. Sidebar thông số
 with st.sidebar:
     st.image("https://img.icons8.com/clouds/200/chatbot.png", width=100)
-    st.markdown("### ⚙️ Thông số Mô hình")
-    st.info(
-        "**Framework:** PyTorch\n\n"
-        "**Architecture:** TransformerEncoder (Deep)\n\n"
-        "**Tokenizer:** BPE\n\n"
-        "**Status:** Đã mở rộng bộ nhớ & dữ liệu"
-    )
+    st.title("⚙️ Cấu hình NemoAI")
+    
+    # Nếu chưa cài Secrets thì cho nhập trực tiếp trên Sidebar
+    if not api_key:
+        api_key = st.text_input("Nhập Google Gemini API Key:", type="password")
+        st.markdown("[👉 Lấy Gemini API Key miễn phí](https://aistudio.google.com/)")
+    else:
+        st.success("✅ Đã kết nối API Key từ Secrets!")
+
     st.divider()
+    
+    # Nút xóa lịch sử chat
     if st.button("🗑️ Xóa lịch sử trò chuyện", use_container_width=True):
         st.session_state.messages = []
         st.rerun()
 
-st.title("🤖 NemoAI Workspace")
-st.caption("Mô hình AI tự chế được huấn luyện với tập dữ liệu mở rộng.")
+# 3. Tiêu đề ứng dụng
+st.title("🤖 NemoAI Pro")
+st.caption("Trợ lý AI thông minh, phản hồi thời gian thực trên đám mây.")
 
-# 4. Kiến trúc mô hình lớn hơn (4 lớp Transformer, chiều nhúng 128)
-class AdvancedCustomAI(nn.Module):
-    def __init__(self, vocab_size, embed_dim=128, num_heads=4, num_layers=4, max_len=256):
-        super().__init__()
-        self.embed = nn.Embedding(vocab_size, embed_dim)
-        self.pos_embed = nn.Embedding(max_len, embed_dim)
-        encoder_layer = nn.TransformerEncoderLayer(
-            d_model=embed_dim, nhead=num_heads, dim_feedforward=256, batch_first=True
-        )
-        self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
-        self.fc_out = nn.Linear(embed_dim, vocab_size)
+# 4. Kiểm tra API Key trước khi khởi chạy
+if not api_key:
+    st.info("💡 Vui lòng nhập Gemini API Key ở thanh bên (Sidebar) hoặc thêm vào Secrets để bắt đầu trò chuyện!")
+    st.stop()
 
-    def forward(self, idx):
-        b, t = idx.shape
-        pos = torch.arange(0, t, device=idx.device).unsqueeze(0)
-        x = self.embed(idx) + self.pos_embed(pos)
-        mask = nn.Transformer.generate_square_subsequent_mask(t).to(idx.device)
-        x = self.transformer(x, mask=mask, is_causal=True)
-        return self.fc_out(x)
+# Khởi tạo thư viện Gemini
+genai.configure(api_key=api_key)
+model = genai.GenerativeModel('gemini-1.5-flash')
 
-# 5. Kho dữ liệu huấn luyện mở rộng
-@st.cache_resource
-def load_and_train_ai():
-    raw_text = """
-    Hỏi: Bạn tên là gì? Đáp: Tôi là NemoAI, trí tuệ nhân tạo tự chế từ PyTorch.
-    Hỏi: Bạn được tạo ra bởi ai? Đáp: Tôi được lập trình và phát triển bởi bạn.
-    Hỏi: Bạn làm bằng ngôn ngữ gì? Đáp: Tôi được viết hoàn toàn bằng Python và PyTorch.
-    Hỏi: Thời tiết hôm nay thế nào? Đáp: Hôm nay trời rất đẹp, thích hợp để viết code AI.
-    Hỏi: 1 cộng 1 bằng mấy? Đáp: 1 cộng 1 bằng 2.
-    Hỏi: Thủ đô Việt Nam là gì? Đáp: Thủ đô của Việt Nam là Hà Nội.
-    Hỏi: Bạn có thông minh không? Đáp: Tôi đang học hỏi và nâng cấp từng ngày.
-    Hỏi: Chào bạn. Đáp: Xin chào! Tôi có thể giúp gì cho bạn hôm nay?
-    Hỏi: Bạn có thích lập trình không? Đáp: Tôi rất thích lập trình Python và mạng neuron.
-    Hỏi: Máy tính là gì? Đáp: Máy tính là thiết bị điện tử giúp xử lý thông tin và tính toán.
-    """ * 5 # Nhân bản dữ liệu để mô hình dễ ghi nhớ hơn trong quá trình train nhanh
-    
-    vocab_size = 1000
-    tokenizer = Tokenizer(models.BPE())
-    tokenizer.pre_tokenizer = pre_tokenizers.Whitespace()
-    trainer_tk = trainers.BpeTrainer(vocab_size=vocab_size, special_tokens=["<|endoftext|>"])
-    tokenizer.train_from_iterator([raw_text], trainer_tk)
-    
-    model = AdvancedCustomAI(vocab_size=vocab_size)
-    
-    encoded = tokenizer.encode(raw_text).ids
-    block_size = 32
-    data = [encoded[i:i + block_size + 1] for i in range(0, len(encoded) - block_size)]
-    
-    if data:
-        inputs = torch.tensor([d[:-1] for d in data])
-        targets = torch.tensor([d[1:] for d in data])
-        optimizer = torch.optim.AdamW(model.parameters(), lr=5e-4)
-        criterion = nn.CrossEntropyLoss()
-        
-        model.train()
-        for _ in range(80): # Tăng số vòng học lên 80 vòng
-            optimizer.zero_grad()
-            loss = criterion(model(inputs).view(-1, vocab_size), targets.view(-1))
-            loss.backward()
-            optimizer.step()
-            
-    model.eval()
-    return model, tokenizer
-
-with st.spinner("Đang huấn luyện mô hình với tập dữ liệu mở rộng..."):
-    model, tokenizer = load_and_train_ai()
-
-# 6. Quản lý lịch sử chat
+# 5. Khởi tạo lịch sử cuộc trò chuyện
 if "messages" not in st.session_state:
     st.session_state.messages = [
-        {"role": "assistant", "content": "Xin chào! Tôi là NemoAI phiên bản nâng cấp. Hãy hỏi tôi bất cứ điều gì trong danh mục dữ liệu nhé!"}
+        {"role": "assistant", "content": "Xin chào! Tôi là NemoAI. Tôi có thể giúp gì cho bạn hôm nay?"}
     ]
 
+# 6. Hiển thị lại các tin nhắn cũ
 for message in st.session_state.messages:
     avatar = "👤" if message["role"] == "user" else "🤖"
     with st.chat_message(message["role"], avatar=avatar):
         st.markdown(message["content"])
 
-# 7. Khung nhập liệu
-if prompt := st.chat_input("Nhập câu hỏi (ví dụ: Hỏi: Bạn tên là gì?)..."):
+# 7. Xử lý khi người dùng gửi tin nhắn mới
+if prompt := st.chat_input("Nhập câu hỏi của bạn..."):
+    # Lưu và hiển thị tin nhắn người dùng
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user", avatar="👤"):
         st.markdown(prompt)
 
+    # Đợi và hiển thị phản hồi từ AI
     with st.chat_message("assistant", avatar="🤖"):
-        with st.spinner("AI đang suy nghĩ..."):
-            encoded_start = tokenizer.encode(prompt).ids
-            if not encoded_start:
-                encoded_start = [0]
-            x = torch.tensor([encoded_start])
+        with st.spinner("NemoAI đang suy nghĩ..."):
+            try:
+                # Chuyển đổi lịch sử chat sang định dạng của Gemini API
+                formatted_history = []
+                for m in st.session_state.messages[:-1]:
+                    role = "user" if m["role"] == "user" else "model"
+                    formatted_history.append({"role": role, "parts": [m["content"]]})
 
-            with torch.no_grad():
-                for _ in range(40):
-                    logits = model(x)
-                    next_token = torch.argmax(logits[0, -1, :]).item()
-                    encoded_start.append(next_token)
-                    x = torch.tensor([encoded_start])
-
-            ai_response = tokenizer.decode(encoded_start)
-            st.markdown(ai_response)
-            
-        st.session_state.messages.append({"role": "assistant", "content": ai_response})
+                chat = model.start_chat(history=formatted_history)
+                response = chat.send_message(prompt)
+                ai_response = response.text
+                
+                st.markdown(ai_response)
+                st.session_state.messages.append({"role": "assistant", "content": ai_response})
+                
+            except Exception as e:
+                error_msg = f"⚠️ Đã xảy ra lỗi khi kết nối API: {e}"
+                st.error(error_msg)
