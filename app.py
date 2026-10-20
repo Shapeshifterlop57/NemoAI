@@ -8,7 +8,7 @@ st.set_page_config(
     layout="centered"
 )
 
-# 2. Lấy Groq API Key từ Secrets hoặc Sidebar
+# 2. Lấy Groq API Key
 api_key = st.secrets.get("GROQ_API_KEY", "")
 
 with st.sidebar:
@@ -24,52 +24,66 @@ with st.sidebar:
         st.session_state.messages = []
         st.rerun()
 
-# 3. Tiêu đề ứng dụng
-st.title("🤖 NemoAI Pro (Groq Speed Engine)")
+st.title("🤖 NemoAI Pro")
 st.caption("Trợ lý AI phản hồi siêu tốc độ.")
 
-# 4. Kiểm tra API Key
 if not api_key:
     st.info("💡 Vui lòng nhập Groq API Key ở thanh bên để bắt đầu!")
     st.stop()
 
-# Khởi tạo Groq Client
 try:
     client = Groq(api_key=api_key.strip())
 except Exception as e:
     st.error(f"⚠️ Lỗi khởi tạo Groq Client: {e}")
     st.stop()
 
-# 5. Khởi tạo lịch sử cuộc trò chuyện
 if "messages" not in st.session_state:
     st.session_state.messages = [
-        {"role": "assistant", "content": "Xin chào! Tôi là NemoAI chạy trên hạ tầng Groq siêu tốc. Tôi có thể giúp gì cho bạn?"}
+        {"role": "assistant", "content": "Xin chào! Tôi là NemoAI. Tôi có thể giúp gì cho bạn?"}
     ]
 
-# 6. Hiển thị lịch sử chat
 for message in st.session_state.messages:
     avatar = "👤" if message["role"] == "user" else "🤖"
     with st.chat_message(message["role"], avatar=avatar):
         st.markdown(message["content"])
 
-# 7. Xử lý câu hỏi người dùng
+# Danh sách các mô hình của Groq để tự động thử
+AVAILABLE_MODELS = [
+    "mixtral-8x7b-32768",
+    "llama3-70b-8192",
+    "gemma2-9b-it",
+    "llama-3.2-3b-preview",
+    "llama-3.2-1b-preview"
+]
+
 if prompt := st.chat_input("Nhập câu hỏi của bạn..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user", avatar="👤"):
         st.markdown(prompt)
 
     with st.chat_message("assistant", avatar="🤖"):
-        with st.spinner("NemoAI đang phản hồi..."):
-            try:
-                chat_completion = client.chat.completions.create(
-                    messages=[
-                        {"role": m["role"], "content": m["content"]}
-                        for m in st.session_state.messages
-                    ],
-                    model="llama-3.3-70b-versatile",  # Dùng model chuẩn, ổn định cao
-                )
-                ai_response = chat_completion.choices[0].message.content
+        with st.spinner("NemoAI đang suy nghĩ..."):
+            ai_response = None
+            last_error = None
+            
+            # Tự động duyệt qua danh sách mô hình cho tới khi thành công
+            for model_name in AVAILABLE_MODELS:
+                try:
+                    chat_completion = client.chat.completions.create(
+                        messages=[
+                            {"role": m["role"], "content": m["content"]}
+                            for m in st.session_state.messages
+                        ],
+                        model=model_name,
+                    )
+                    ai_response = chat_completion.choices[0].message.content
+                    break  # Thành công thì thoát vòng lặp ngay
+                except Exception as e:
+                    last_error = e
+                    continue
+
+            if ai_response:
                 st.markdown(ai_response)
                 st.session_state.messages.append({"role": "assistant", "content": ai_response})
-            except Exception as e:
-                st.error(f"⚠️ Lỗi kết nối API: {e}")
+            else:
+                st.error(f"⚠️ Lỗi kết nối API: {last_error}")
