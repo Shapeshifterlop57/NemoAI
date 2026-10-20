@@ -1,2 +1,5 @@
 streamlit
+transformers
+torch
+sentencepiecestreamlit
 groq
