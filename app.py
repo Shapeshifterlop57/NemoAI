@@ -66,7 +66,7 @@ if prompt := st.chat_input("Nhập câu hỏi của bạn..."):
                         {"role": m["role"], "content": m["content"]}
                         for m in st.session_state.messages
                     ],
-                    model="llama3-8b-8192",
+                    model="llama-3.1-8b-instant",  # Đã cập nhật model mới chuẩn xác
                 )
                 ai_response = chat_completion.choices[0].message.content
                 st.markdown(ai_response)
