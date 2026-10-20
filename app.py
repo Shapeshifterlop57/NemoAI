@@ -1,5 +1,6 @@
 import streamlit as st
 from google import genai
+from google.genai import types
 
 # 1. Cấu hình giao diện trang Streamlit
 st.set_page_config(
@@ -9,65 +10,62 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# 2. Quản lý API Key (Tự động lấy từ Secrets hoặc Sidebar)
+# 2. Quản lý API Key / Token
 api_key = st.secrets.get("GEMINI_API_KEY", "")
 
 with st.sidebar:
     st.title("⚙️ Cấu hình NemoAI")
     
     if not api_key:
-        api_key = st.text_input("Nhập API Key của bạn:", type="password")
-        st.markdown("[👉 Lấy API Key miễn phí tại đây](https://aistudio.google.com/)")
+        api_key = st.text_input("Nhập Google Cloud Token / API Key:", type="password")
     else:
-        st.success("✅ Đã kết nối API Key từ Secrets!")
+        st.success("✅ Đã kết nối Key từ Secrets!")
 
     st.divider()
     
-    # Nút xóa lịch sử cuộc trò chuyện
     if st.button("🗑️ Xóa lịch sử trò chuyện", use_container_width=True):
         st.session_state.messages = []
         st.rerun()
 
-# 3. Tiêu đề ứng dụng
 st.title("🤖 NemoAI Pro")
 st.caption("Trợ lý AI thông minh, phản hồi thời gian thực trên đám mây.")
 
-# 4. Kiểm tra xem đã có API Key chưa
 if not api_key:
-    st.info("💡 Vui lòng nhập API Key ở thanh bên (Sidebar) để bắt đầu trò chuyện!")
+    st.info("💡 Vui lòng nhập khóa ở thanh bên để bắt đầu!")
     st.stop()
 
-# Khởi tạo client Gemini với SDK mới
+# Khởi tạo client hỗ trợ Google Cloud / Vertex AI
 try:
-    client = genai.Client(api_key=api_key.strip())
+    # Nếu dùng token AQ..., ta kích hoạt chế độ Vertex AI với project của bạn
+    client = genai.Client(
+        vertexai=True,
+        project="971262343898",
+        location="us-central1"
+    )
 except Exception as e:
-    st.error(f"⚠️ Lỗi khởi tạo API Client: {e}")
+    st.error(f"⚠️ Lỗi khởi tạo Client: {e}")
     st.stop()
 
-# 5. Khởi tạo danh sách lưu trữ lịch sử chat
+# 3. Lịch sử trò chuyện
 if "messages" not in st.session_state:
     st.session_state.messages = [
         {"role": "assistant", "content": "Xin chào! Tôi là NemoAI. Tôi có thể giúp gì cho bạn hôm nay?"}
     ]
 
-# 6. Hiển thị lại lịch sử các tin nhắn cũ
 for message in st.session_state.messages:
     avatar = "👤" if message["role"] == "user" else "🤖"
     with st.chat_message(message["role"], avatar=avatar):
         st.markdown(message["content"])
 
-# 7. Xử lý khi người dùng nhập câu hỏi mới
+# 4. Xử lý tin nhắn
 if prompt := st.chat_input("Nhập câu hỏi của bạn..."):
-    # Hiển thị tin nhắn người dùng
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user", avatar="👤"):
         st.markdown(prompt)
 
-    # Gọi API nhận câu trả lời từ Gemini
     with st.chat_message("assistant", avatar="🤖"):
         with st.spinner("NemoAI đang suy nghĩ..."):
             try:
-                # Thử gọi mô hình gemini-1.5-flash chuẩn
                 response = client.models.generate_content(
                     model='gemini-1.5-flash',
                     contents=prompt
@@ -78,14 +76,4 @@ if prompt := st.chat_input("Nhập câu hỏi của bạn..."):
                 st.session_state.messages.append({"role": "assistant", "content": ai_response})
                 
             except Exception as e:
-                # Fallback sang gemini-2.5-flash nếu mô hình đầu tiên thay đổi
-                try:
-                    response = client.models.generate_content(
-                        model='gemini-2.5-flash',
-                        contents=prompt
-                    )
-                    ai_response = response.text
-                    st.markdown(ai_response)
-                    st.session_state.messages.append({"role": "assistant", "content": ai_response})
-                except Exception as ex:
-                    st.error(f"⚠️ Đã xảy ra lỗi khi kết nối API: {ex}")
+                st.error(f"⚠️ Đã xảy ra lỗi khi kết nối API: {e}")
