@@ -32,12 +32,12 @@ with st.sidebar:
 st.title("🤖 NemoAI Pro")
 st.caption("Trợ lý AI thông minh, phản hồi thời gian thực trên đám mây.")
 
-# 4. Kiểm tra xem đã có API Key chưa
+# 4. Kiểm tra API Key
 if not api_key:
     st.info("💡 Vui lòng nhập Gemini API Key ở thanh bên (Sidebar) để bắt đầu trò chuyện!")
     st.stop()
 
-# Khởi tạo client Gemini với SDK mới
+# Khởi tạo client Gemini
 try:
     client = genai.Client(api_key=api_key)
 except Exception as e:
@@ -67,7 +67,7 @@ if prompt := st.chat_input("Nhập câu hỏi của bạn..."):
     with st.chat_message("assistant", avatar="🤖"):
         with st.spinner("NemoAI đang suy nghĩ..."):
             try:
-                # Gửi yêu cầu qua mô hình gemini-2.5-flash / gemini-1.5-flash
+                # Sử dụng gemini-2.5-flash hoặc alias gemini-flash-latest
                 response = client.models.generate_content(
                     model='gemini-2.5-flash',
                     contents=prompt
@@ -78,10 +78,10 @@ if prompt := st.chat_input("Nhập câu hỏi của bạn..."):
                 st.session_state.messages.append({"role": "assistant", "content": ai_response})
                 
             except Exception as e:
-                # Nếu gemini-2.5-flash báo lỗi, thử fallback sang gemini-1.5-flash
+                # Fallback tự động nếu có sự thay đổi endpoint
                 try:
                     response = client.models.generate_content(
-                        model='gemini-1.5-flash',
+                        model='gemini-flash-latest',
                         contents=prompt
                     )
                     ai_response = response.text
