@@ -9,7 +9,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# 2. Quản lý API Key (Tự động lấy từ Secrets hoặc Sidebar)
+# 2. Quản lý API Key
 api_key = st.secrets.get("GEMINI_API_KEY", "")
 
 with st.sidebar:
@@ -23,7 +23,6 @@ with st.sidebar:
 
     st.divider()
     
-    # Nút xóa lịch sử cuộc trò chuyện
     if st.button("🗑️ Xóa lịch sử trò chuyện", use_container_width=True):
         st.session_state.messages = []
         st.rerun()
@@ -37,11 +36,11 @@ if not api_key:
     st.info("💡 Vui lòng nhập Gemini API Key ở thanh bên (Sidebar) để bắt đầu trò chuyện!")
     st.stop()
 
-# Khởi tạo client Gemini
+# Khởi tạo Client
 try:
-    client = genai.Client(api_key=api_key)
+    client = genai.Client(api_key=api_key.strip())
 except Exception as e:
-    st.error(f"⚠️ Lỗi khởi tạo API Client: {e}")
+    st.error(f"⚠️ Lỗi kết nối Client: {e}")
     st.stop()
 
 # 5. Khởi tạo danh sách lưu trữ lịch sử chat
@@ -50,27 +49,25 @@ if "messages" not in st.session_state:
         {"role": "assistant", "content": "Xin chào! Tôi là NemoAI. Tôi có thể giúp gì cho bạn hôm nay?"}
     ]
 
-# 6. Hiển thị lại lịch sử các tin nhắn
+# 6. Hiển thị lại lịch sử tin nhắn
 for message in st.session_state.messages:
     avatar = "👤" if message["role"] == "user" else "🤖"
     with st.chat_message(message["role"], avatar=avatar):
         st.markdown(message["content"])
 
-# 7. Xử lý khi người dùng nhập câu hỏi mới
+# 7. Xử lý khi gửi tin nhắn mới
 if prompt := st.chat_input("Nhập câu hỏi của bạn..."):
-    # Hiển thị tin nhắn người dùng
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user", avatar="👤"):
         st.markdown(prompt)
 
-    # Gọi API nhận câu trả lời từ Gemini
     with st.chat_message("assistant", avatar="🤖"):
         with st.spinner("NemoAI đang suy nghĩ..."):
             try:
-                # Sử dụng gemini-2.5-flash hoặc alias gemini-flash-latest
+                # Gọi trực tiếp mô hình gemini-1.5-flash
                 response = client.models.generate_content(
-                    model='gemini-2.5-flash',
-                    contents=prompt
+                    model='gemini-1.5-flash',
+                    contents=prompt,
                 )
                 ai_response = response.text
                 
@@ -78,14 +75,4 @@ if prompt := st.chat_input("Nhập câu hỏi của bạn..."):
                 st.session_state.messages.append({"role": "assistant", "content": ai_response})
                 
             except Exception as e:
-                # Fallback tự động nếu có sự thay đổi endpoint
-                try:
-                    response = client.models.generate_content(
-                        model='gemini-flash-latest',
-                        contents=prompt
-                    )
-                    ai_response = response.text
-                    st.markdown(ai_response)
-                    st.session_state.messages.append({"role": "assistant", "content": ai_response})
-                except Exception as ex:
-                    st.error(f"⚠️ Đã xảy ra lỗi khi kết nối API: {ex}")
+                st.error(f"⚠️ Đã xảy ra lỗi kết nối: {e}")
